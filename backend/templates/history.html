@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ ticker }} History</title>
+    <style>
+        table {
+            width: 100%;
+        }
+        td, th {
+            padding: 15px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <h1>{{ ticker }} History</h1>
+    <table>
+        <tr>
+            <th>Date</th>
+            <th></th>
+            <th>Open</th>
+            <th></th>
+            <th>High</th>
+            <th></th>
+            <th>Low</th>
+            <th></th>
+            <th>Close</th>
+            <th></th>
+            <th>Volume</th>
+        </tr>
+        {% for date, record in history %}
+            <tr>
+                <td>{{ date }}</td>
+                <td></td>
+                <td>{{ record['1. open'] }}</td>
+                <td></td>
+                <td>{{ record['2. high'] }}</td>
+                <td></td>
+                <td>{{ record['3. low'] }}</td>
+                <td></td>
+                <td>{{ record['4. close'] }}</td>
+                <td></td>
+                <td>{{ record['5. volume'] }}</td>
+            </tr>
+        {% endfor %}
+    </table>
+    <button onclick="location.href='/stock/{{ ticker }}'" type="button">Back to Stock</button>
+</body>
+</html>
