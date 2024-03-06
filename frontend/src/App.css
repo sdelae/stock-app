@@ -36,3 +36,26 @@
     transform: rotate(360deg);
   }
 }
+
+/* New styles for the portfolio table */
+.portfolio-summary {
+  margin-bottom: 20px;
+}
+
+.stock-breakdown {
+  margin-bottom: 10px;
+}
+
+/* Styles for positive and negative changes */
+.positive-change {
+  color: #28a745 !important; /* Green for positive values */
+}
+
+.negative-change {
+  color: #dc3545 !important; /* Red for negative values */
+}
+
+/* Styles for table */
+.table {
+  margin-top: 20px;
+}

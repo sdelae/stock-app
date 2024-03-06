@@ -20,19 +20,29 @@ def get_current_price(ticker):
         return None
 
 def get_past_data(ticker):
-    """Fetch weekly time series data for the past two months for a stock."""
+    """Fetch weekly time series data for the past two months for a stock and calculate weekly change."""
     try:
         response = requests.get(f"https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol={ticker}&apikey=ZSLQEIEAP5XSK6N0")
-        # If the response status code indicates an error, raise an exception
         response.raise_for_status()
         data = response.json()
         
-        # Check if the expected data is present in the response
         if "Weekly Time Series" not in data:
             raise ValueError("Weekly Time Series data is not in the response")
 
+        # Convert the response into a list of tuples (date, data)
         weekly_data = list(data["Weekly Time Series"].items())[:8]
-        return [{
+
+        # Calculate weekly change between the most recent two weeks
+        if len(weekly_data) >= 2:
+            # Get the most recent close and the close from the previous week
+            last_close = float(weekly_data[0][1]['4. close'])
+            prev_close = float(weekly_data[1][1]['4. close'])
+            weekly_change = (last_close - prev_close) / prev_close * 100
+        else:
+            weekly_change = 0  # If not enough data is available, default to 0
+
+        # Format the weekly data for the response
+        formatted_data = [{
             "date": week[0],
             "open": float(week[1]['1. open']),
             "high": float(week[1]['2. high']),
@@ -40,15 +50,17 @@ def get_past_data(ticker):
             "close": float(week[1]['4. close']),
             "volume": int(week[1]['5. volume'])
         } for week in weekly_data]
+
+        return formatted_data, weekly_change
     except requests.HTTPError as http_err:
-        print(f"HTTP error occurred: {http_err}")  # Python 3.6
-        return None
+        print(f"HTTP error occurred: {http_err}")
+        return [], 0
     except ValueError as val_err:
-        print(f"Value error: {val_err}")  # Value error, such as missing data
-        return None
+        print(f"Value error: {val_err}")
+        return [], 0
     except Exception as e:
-        print(f"Other error occurred: {e}")  # Other errors
-        return None
+        print(f"Other error occurred: {e}")
+        return [], 0
 
 @app.route('/')
 def home():
@@ -76,7 +88,7 @@ def home():
             total_portfolio_value += total_stock_value
             
             profit_loss = (current_price - item["purchase_price"]) * item["quantity"]
-            past_data = get_past_data(item["ticker"])  # This should return the data directly
+            past_data, weekly_change = get_past_data(item["ticker"])  # This should return the data directly
             percentage_of_total = (total_stock_value / total_portfolio_value * 100) if total_portfolio_value else 0
 
             stocks.append({
@@ -85,7 +97,8 @@ def home():
                 "profit_loss": profit_loss,
                 "current_value": total_stock_value,
                 "percentage_of_total": percentage_of_total,
-                "past_data": past_data
+                "past_data": past_data,
+                "weekly_change": weekly_change
             })
 
     except (FileNotFoundError, json.JSONDecodeError) as e:

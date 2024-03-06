@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Accordion, Table } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
+import './App.css';
 
 function App() {
   const [stocks, setStocks] = useState([]);
@@ -12,18 +13,14 @@ function App() {
   useEffect(() => {
     axios.get('https://mcsbt-integration-sara.ew.r.appspot.com/')
       .then(response => {
-        const updatedStocks = response.data.stocks.map(stock => ({
-          ...stock,
-          percentage_of_total: ((stock.total_stock_value || 0) / (response.data.total_portfolio_value || 1)) * 100,
-        }));
-        setStocks(response.data.stocks);
+        setStocks(response.data.stocks); // This will set the stocks with all needed data
         setTotalValue(response.data.total_portfolio_value);
       })
       .catch(error => {
         console.error('Error fetching data: ', error);
         setError(error);
       });
-  }, []);
+}, []);
 
   if (error) {
     return <div>Error: {error.message}</div>;
@@ -35,26 +32,43 @@ function App() {
     <div>
       <h1>Total Portfolio Value: ${formattedTotalValue}</h1>
       <Accordion activeKey={activeKey}>
+
+        {/* New Accordion Item for the portfolio breakdown */}
         <Accordion.Item eventKey="portfolioBreakdown">
           <Accordion.Header onClick={() => setActiveKey(activeKey !== "portfolioBreakdown" ? "portfolioBreakdown" : null)}>
             Portfolio Breakdown
           </Accordion.Header>
           <Accordion.Body>
-            {stocks.map((stock, index) => {
-              const quantity = stock.quantity ? stock.quantity : 'Loading...';
-              const percentageOfTotal = stock.percentage_of_total ? stock.percentage_of_total.toFixed(2) : 'Loading...';
-              const weeklyChange = stock.weekly_change ? stock.weekly_change.toFixed(2) : 'Loading...';
-              return (
-                <div key={index} className="stock-breakdown">
-                  <div>Ticker: {stock.ticker}</div>
-                  <div>Quantity: {quantity}</div>
-                  <div>Percentage of Total Portfolio: {percentageOfTotal}%</div>
-                  <div>Weekly Change: {weeklyChange}%</div>
-                </div>
-              );
-            })}
+          <Table striped bordered hover size="sm" responsive>
+              <thead>
+                <tr>
+                  <th>Ticker</th>
+                  <th>Quantity</th>
+                  <th>Percentage of Total Portfolio</th>
+                  <th>Weekly Change</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stocks.map((stock, index) => {
+                  // Define weeklyChangeClass inside map function
+                  const weeklyChangeClass = stock.weekly_change >= 0 ? 'positive-change' : 'negative-change';
+                  return (
+                    <tr key={index}>
+                      <td>{stock.ticker}</td>
+                      <td>{stock.quantity || 'Loading...'}</td>
+                      <td>{stock.percentage_of_total ? `${stock.percentage_of_total.toFixed(2)}%` : 'Loading...'}</td>
+                      <td className={weeklyChangeClass}>
+                        {stock.weekly_change ? `${stock.weekly_change.toFixed(2)}%` : 'Loading...'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </Table>
+
           </Accordion.Body>
         </Accordion.Item>
+        
         {stocks.map((stock, index) => {
           const eventKey = String(index + 1);
           return (
