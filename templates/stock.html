@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ ticker }}</title>
+</head>
+<body>
+    <h1>{{ ticker }}</h1>
+    <p>Open: {{ open_price }}</p>
+    <p>High: {{ high_price }}</p>
+    <p>Low: {{ low_price }}</p>
+    <p>Volume: {{ volume }}</p>
+    <p>Previous Close: {{ latest_close }}</p>
+    <p>Change: {{ change }}</p>
+    <p>Change Percent: {{ change_percent }}</p>
+    <br>
+    <p><b>Profit/Loss: {{ profit_loss }}</b></p>
+    <p><b>Quantity: {{ quantity }}</b></p>
+    <br>
+    <button onclick="location.href='/'" type="button">Home</button>
+    <button onclick="location.href='/stock/{{ ticker }}/history'" type="button">Latest 2 Month History</button>
+</body>
+</html>
