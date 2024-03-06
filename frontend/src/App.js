@@ -4,77 +4,77 @@ import { Accordion, Table } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 function App() {
+  // State to store the list of stocks and total portfolio value
   const [stocks, setStocks] = useState([]);
-  const [activeKey, setActiveKey] = useState(null);
-  const [error, setError] = useState(null); // Add a new state for error
+  const [totalValue, setTotalValue] = useState(0); 
+  const [activeKey, setActiveKey] = useState(null); // State to manage which accordion item is open
+  const [error, setError] = useState(null); // State to store any error from the API request
 
-  // Use useEffect hook to fetch data when the component mounts
   useEffect(() => {
+    // Fetch data from the backend on component mount
     axios.get('https://mcsbt-integration-sara.ew.r.appspot.com/')
       .then(response => {
-        // If the request is successful, update the stocks state
-        setStocks(response.data);
+        // Update state with data from backend
+        setStocks(response.data.stocks); // Update stocks with detailed data
+        setTotalValue(response.data.total_portfolio_value); // Update total portfolio value
       })
       .catch(error => {
-        // If an error occurs, log it to the console and update the error state
-        console.error(error);
-        setError(error); // Set the error state if an error occurs
+        // Handle any errors from the fetch operation
+        console.error('Error fetching data: ', error);
+        setError(error); // Store the error
       });
-  }, []); // Empty dependency array means this effect runs once on mount
+  }, []); // Effect runs only once on mount
 
-  // If there's an error, render an error message
+  // Early return in case of an error
   if (error) {
-    return <div>Error: {error.message}</div>; // Render an error message if an error occurs
+    return <div>Error: {error.message}</div>;
   }
 
   return (
-    // Use the Accordion component from react-bootstrap
-    <Accordion activeKey={activeKey}>
-      {/* Map over the stocks array and create an Accordion.Item for each stock */}
-      {stocks.map((stock, index) => {
-        const eventKey = String(index);
-        return (
-          // Create an Accordion.Item with the eventKey and key set to the index
-          <Accordion.Item eventKey={eventKey} key={index}>
-            {/* Create an Accordion.Header that updates the activeKey state when clicked */}
-            <Accordion.Header onClick={() => setActiveKey(activeKey !== eventKey ? eventKey : null)}>
-              {/* Display the stock ticker and profit/loss rounded to 2 decimal places */}
-              {stock.ticker} - Profit/Loss: {Number(stock.profit_loss).toFixed(2)}
-            </Accordion.Header>
-            {/* Create an Accordion.Body that contains a Table */}
-            <Accordion.Body>
-              {/* Use the Table component from react-bootstrap */}
-              <Table striped bordered hover size="sm" responsive>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Open</th>
-                    <th>High</th>
-                    <th>Low</th>
-                    <th>Close</th>
-                    <th>Volume</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* Map over the past_data array and create a table row for each week */}
-                  {stock.past_data.map((weekData, weekIndex) => (
-                    <tr key={weekIndex}>
-                      {/* Display the date, open, high, low, close, and volume */}
-                      <td>{weekData.date}</td>
-                      <td>{weekData.open}</td>
-                      <td>{weekData.high}</td>
-                      <td>{weekData.low}</td>
-                      <td>{weekData.close}</td>
-                      <td>{weekData.volume}</td>
+    <div>
+      {/* Display the total value of the portfolio */}
+      <h1>Total Portfolio Value: ${totalValue.toFixed(2)}</h1>
+      <Accordion activeKey={activeKey}>
+        {stocks.map((stock, index) => {
+          const eventKey = String(index); // Unique key for each accordion item
+          return (
+            <Accordion.Item eventKey={eventKey} key={index}>
+              <Accordion.Header onClick={() => setActiveKey(activeKey !== eventKey ? eventKey : null)}>
+                {/* Display ticker, profit/loss, and percentage of total value */}
+                {`${stock.ticker} - Profit/Loss: ${stock.profit_loss.toFixed(2)} (${stock.percentage_of_total.toFixed(2)}%)`}
+              </Accordion.Header>
+              <Accordion.Body>
+                <Table striped bordered hover size="sm" responsive>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Open</th>
+                      <th>High</th>
+                      <th>Low</th>
+                      <th>Close</th>
+                      <th>Volume</th>
                     </tr>
-                  ))}
-                </tbody>
-              </Table>
-            </Accordion.Body>
-          </Accordion.Item>
-        );
-      })}
-    </Accordion>
+                  </thead>
+                  <tbody>
+                    {/* Map over each week's data for the stock and display it */}
+                    {stock.past_data.map((weekData, weekIndex) => (
+                      <tr key={weekIndex}>
+                        <td>{weekData.date}</td>
+                        <td>{weekData.open}</td>
+                        <td>{weekData.high}</td>
+                        <td>{weekData.low}</td>
+                        <td>{weekData.close}</td>
+                        <td>{weekData.volume}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </Accordion.Body>
+            </Accordion.Item>
+          );
+        })}
+      </Accordion>
+    </div>
   );
 }
 
