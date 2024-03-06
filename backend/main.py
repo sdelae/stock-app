@@ -1,22 +1,36 @@
 import requests
-from flask import Flask, jsonify
+from flask import Flask, jsonify, abort
 import json
 from flask_cors import CORS
 
 app = Flask(__name__)
-# Allow CORS
+# Enable Cross-Origin Resource Sharing (CORS) for all routes and origins
 CORS(app, resources={r"/*": {"origins": "*"}}) 
 
-# Function to get the current price of a stock
 def get_current_price(ticker):
-    response = requests.get(f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={ticker}&apikey=ZSLQEIEAP5XSK6N0")
+    try:
+        response = requests.get(f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={ticker}&apikey=ZSLQEIEAP5XSK6N0")
+        # If the response status code indicates an error, raise an exception
+        response.raise_for_status()
+    except requests.RequestException as e:
+        # If an error occurs, print a message and return None
+        print(f"Failed to get current price for {ticker}: {e}")
+        return None
+    # Parse the JSON response
     data = response.json()
     # Return the current price of the stock
     return float(data["Global Quote"]["05. price"])
 
-# Function to get the past data of a stock
 def get_past_data(ticker):
-    response = requests.get(f"https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol={ticker}&apikey=ZSLQEIEAP5XSK6N0")
+    try:
+        response = requests.get(f"https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol={ticker}&apikey=ZSLQEIEAP5XSK6N0")
+        # If the response status code indicates an error, raise an exception
+        response.raise_for_status()
+    except requests.RequestException as e:
+        # If an error occurs, print a message and return an empty list
+        print(f"Failed to get past data for {ticker}: {e}")
+        return []
+    # Parse the JSON response
     data = response.json()
     # Get the past 2 months of data
     weekly_data = list(data["Weekly Time Series"].items())[:8]
@@ -25,12 +39,14 @@ def get_past_data(ticker):
              "low": float(week[1]['3. low']), "close": float(week[1]['4. close']), 
              "volume": int(week[1]['5. volume'])} for week in weekly_data]
 
-# Define the route for the home page
 @app.route('/')
 def home():
-    # Open the portfolio.json file and load its contents
-    with open('portfolio.json', 'r') as file:
-        portfolio = json.load(file)
+    try:
+        with open('portfolio.json', 'r') as file:
+            portfolio = json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Failed to load portfolio: {e}")
+        abort(500) # If an error occurs, print a message and return a 500 Internal Server Error
     stocks = []
     for item in portfolio["portfolios"][0]["items"]:
         # Get the current price of the stock
@@ -39,7 +55,6 @@ def home():
         profit_loss = (current_price - item["purchase_price"]) * item["quantity"]
         # Get the past data of the stock
         past_data = get_past_data(item["ticker"])
-        # Add the stock to the list
         stocks.append({"ticker": item["ticker"], "profit_loss": profit_loss, "past_data": past_data})
     # Return the list of stocks as a JSON response
     return jsonify(stocks)
