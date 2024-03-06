@@ -1,40 +1,68 @@
-// Importing necessary hooks from React
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { Accordion, AccordionButton, AccordionCollapse, Card, Table } from 'react-bootstrap';
+import 'bootstrap/dist/css/bootstrap.min.css'; // Import Bootstrap CSS
 
-// App component
 function App() {
-  // Declaration for portfolios
-  const [portfolios, setPortfolios] = useState(null);
+  const [stocks, setStocks] = useState([]);
+  const [activeKey, setActiveKey] = useState(null);
 
-  // useEffect hook to fetch data on component mount
   useEffect(() => {
-    // Fetch the data from the backend
-    fetch('http://127.0.0.1:5000/')
-      .then(response => response.json())
-      .then(data => {
-        // Set the portfolios data once fetched
-        setPortfolios(data.portfolios);
+    axios.get('https://mcsbt-integration-sara.ew.r.appspot.com')
+      .then(response => {
+        setStocks(response.data);
       })
-      // Catch and log any errors
-      .catch(error => console.error('Error:', error));
-  }, []); // Empty dependency array ensures this runs once on mount
+      .catch(error => {
+        console.log(error);
+      });
+  }, []);
 
-  // Render method
+  const toggleActiveKey = (key) => {
+    // This toggles the accordion item. If the item was already open, it will close it.
+    setActiveKey(activeKey === key ? null : key);
+  };
+
   return (
-    <div>
-      {/* Check if portfolios data is available */}
-      {portfolios ? 
-        // Map over the items in the first portfolio and display them
-        portfolios[0].items.map((item, index) => (
-        <div key={index}>
-          {item.ticker}: Quantity - {item.quantity}, Purchase Price - {item.purchase_price}
-        </div>
-      )) : 
-        // If portfolios data is not available, display "Loading..."
-        "Loading..."}
-    </div>
+    <Accordion activeKey={activeKey}>
+      {stocks.map((stock, index) => (
+        <Card key={index}>
+          <Card.Header>
+            <AccordionButton onClick={() => toggleActiveKey(`${index}`)}>
+              {stock.ticker} - Profit/Loss: {stock.profit_loss}
+            </AccordionButton>
+          </Card.Header>
+          <AccordionCollapse eventKey={`${index}`}>
+            <Card.Body>
+              <Table striped bordered hover size="sm" responsive>
+                <thead>
+                  <tr>
+                    <th>Week</th>
+                    <th>Open</th>
+                    <th>High</th>
+                    <th>Low</th>
+                    <th>Close</th>
+                    <th>Volume</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stock.past_data && stock.past_data.map((weekData, weekIndex) => (
+                    <tr key={weekIndex}>
+                      <td>{weekIndex + 1}</td>
+                      <td>{weekData.open}</td>
+                      <td>{weekData.high}</td>
+                      <td>{weekData.low}</td>
+                      <td>{weekData.close}</td>
+                      <td>{weekData.volume}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </Card.Body>
+          </AccordionCollapse>
+        </Card>
+      ))}
+    </Accordion>
   );
 }
 
-// Export the App component
 export default App;
