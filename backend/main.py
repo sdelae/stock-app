@@ -7,60 +7,72 @@ app = Flask(__name__)
 # Enable Cross-Origin Resource Sharing (CORS) for all routes and origins
 CORS(app, resources={r"/*": {"origins": "*"}}) 
 
+def make_api_request(url):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        print(f"API request error: {e}")
+        return None
+
 def get_current_price(ticker):
     """Fetch the current price of a stock using Alpha Vantage API."""
     try:
-        response = requests.get(f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={ticker}&apikey=ZSLQEIEAP5XSK6N0")
-        # If the response status code indicates an error, raise an exception
-        response.raise_for_status()
-        data = response.json()
-        return float(data["Global Quote"]["05. price"])
+        data = make_api_request(f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={ticker}&apikey=ZSLQEIEAP5XSK6N0")
+        if data:
+            return float(data["Global Quote"]["05. price"])
+        return None
     except Exception as e:
         print(f"Error fetching current price for {ticker}: {e}")
         return None
-
+    
 def get_past_data(ticker):
     """Fetch weekly time series data for the past two months for a stock and calculate weekly change."""
     try:
-        response = requests.get(f"https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol={ticker}&apikey=ZSLQEIEAP5XSK6N0")
-        response.raise_for_status()
-        data = response.json()
+        # Fetch the data using a standardized API request function
+        data = make_api_request(f"https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol={ticker}&apikey=ZSLQEIEAP5XSK6N0")
         
-        if "Weekly Time Series" not in data:
+        if not data or "Weekly Time Series" not in data:
             raise ValueError("Weekly Time Series data is not in the response")
 
-        # Convert the response into a list of tuples (date, data)
-        weekly_data = list(data["Weekly Time Series"].items())[:8]
-
-        # Calculate weekly change between the most recent two weeks
-        if len(weekly_data) >= 2:
-            # Get the most recent close and the close from the previous week
-            last_close = float(weekly_data[0][1]['4. close'])
-            prev_close = float(weekly_data[1][1]['4. close'])
-            weekly_change = (last_close - prev_close) / prev_close * 100
-        else:
-            weekly_change = 0  # If not enough data is available, default to 0
-
-        # Format the weekly data for the response
-        formatted_data = [{
-            "date": week[0],
-            "open": float(week[1]['1. open']),
-            "high": float(week[1]['2. high']),
-            "low": float(week[1]['3. low']),
-            "close": float(week[1]['4. close']),
-            "volume": int(week[1]['5. volume'])
-        } for week in weekly_data]
+        # Process the data using the dedicated function
+        formatted_data, weekly_change = process_weekly_data(data)
 
         return formatted_data, weekly_change
     except requests.HTTPError as http_err:
         print(f"HTTP error occurred: {http_err}")
-        return [], 0
     except ValueError as val_err:
         print(f"Value error: {val_err}")
-        return [], 0
     except Exception as e:
         print(f"Other error occurred: {e}")
-        return [], 0
+    return [], 0
+
+
+def process_weekly_data(data):
+    """Extract and process the weekly time series data from the API response."""
+    # Assuming data is the JSON response already verified to contain "Weekly Time Series"
+    weekly_data = list(data["Weekly Time Series"].items())[:8]
+    
+    # The rest of your data processing logic...
+    if len(weekly_data) >= 2:
+        last_close = float(weekly_data[0][1]['4. close'])
+        prev_close = float(weekly_data[1][1]['4. close'])
+        weekly_change = (last_close - prev_close) / prev_close * 100
+    else:
+        weekly_change = 0  # Default to 0 if not enough data
+
+    formatted_data = [{
+        "date": week[0],
+        "open": float(week[1]['1. open']),
+        "high": float(week[1]['2. high']),
+        "low": float(week[1]['3. low']),
+        "close": float(week[1]['4. close']),
+        "volume": int(week[1]['5. volume'])
+    } for week in weekly_data]
+
+    return formatted_data, weekly_change
+
 
 @app.route('/')
 def home():
