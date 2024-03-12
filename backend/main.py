@@ -1,12 +1,40 @@
+import oracledb
 import requests
-from flask import Flask, jsonify, abort
+from flask import Flask, jsonify, abort, request
 import json
 from flask_cors import CORS
+from sqlalchemy import NullPool
+from models import Stock, db 
 
+# Initialize a Flask application
 app = Flask(__name__)
-# Enable Cross-Origin Resource Sharing (CORS) for all routes and origins
-CORS(app, resources={r"/*": {"origins": "*"}}) 
+# Enable CORS for all domains on all routes
+CORS(app, resources={r"/*": {"origins": "*"}})
 
+# Oracle database credentials and connection string
+un = 'ADMIN'
+pw = 'CapstoneProject2024'
+dsn = '(description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1521)(host=adb.eu-madrid-1.oraclecloud.com))(connect_data=(service_name=gb3264e6f832c8b_stockdatabase_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))'
+
+# Create a connection pool to the Oracle database
+pool = oracledb.create_pool(user=un, password=pw, dsn=dsn)
+
+# Configure the Flask app to use the SQLAlchemy ORM with Oracle database
+app.config['SQLALCHEMY_DATABASE_URI'] = 'oracle+oracledb://'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'creator': pool.acquire,
+    'poolclass': NullPool
+}
+
+# Initialize the database with the app
+db.init_app(app)
+
+# Create the database tables
+with app.app_context():
+    db.create_all()
+
+# Function to make a generic API request and handle errors
 def make_api_request(url):
     try:
         response = requests.get(url)
@@ -16,6 +44,7 @@ def make_api_request(url):
         print(f"API request error: {e}")
         return None
 
+# Function to get the current price of a stock using an external API
 def get_current_price(ticker):
     """Fetch the current price of a stock using Alpha Vantage API."""
     try:
@@ -27,6 +56,7 @@ def get_current_price(ticker):
         print(f"Error fetching current price for {ticker}: {e}")
         return None
     
+# Function to get historical weekly data for a stock
 def get_past_data(ticker):
     """Fetch weekly time series data for the past two months for a stock and calculate weekly change."""
     try:
@@ -48,13 +78,11 @@ def get_past_data(ticker):
         print(f"Other error occurred: {e}")
     return [], 0
 
-
+# Function to process the received weekly data
 def process_weekly_data(data):
     """Extract and process the weekly time series data from the API response."""
-    # Assuming data is the JSON response already verified to contain "Weekly Time Series"
     weekly_data = list(data["Weekly Time Series"].items())[:8]
     
-    # The rest of your data processing logic...
     if len(weekly_data) >= 2:
         last_close = float(weekly_data[0][1]['4. close'])
         prev_close = float(weekly_data[1][1]['4. close'])
@@ -73,58 +101,95 @@ def process_weekly_data(data):
 
     return formatted_data, weekly_change
 
-
+# Define the root endpoint which provides aggregated portfolio data
 @app.route('/')
 def home():
     """Endpoint that returns portfolio data including each stock's contribution percentage."""
-    try:
-        with open('portfolio.json', 'r') as file:
-            portfolio = json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"Failed to load portfolio: {e}")
-        abort(500) # If an error occurs, print a message and return a 500 Internal Server Error
-
-        # Accumulate total portfolio value and prepare stock data
     total_portfolio_value = 0
-    stocks = []
-    try:
-        with open('portfolio.json', 'r') as file:
-            portfolio = json.load(file)
+    stocks_data = []
+    stocks = Stock.query.all()  # Retrieve all stock records from the database
 
-        for item in portfolio["portfolios"][0]["items"]:
-            current_price = get_current_price(item["ticker"])
-            if current_price is None:
-                continue  # Skip if current price couldn't be fetched
-            
-            total_stock_value = current_price * item["quantity"]
-            total_portfolio_value += total_stock_value
-            
-            profit_loss = (current_price - item["purchase_price"]) * item["quantity"]
-            past_data, weekly_change = get_past_data(item["ticker"])  # This should return the data directly
-            percentage_of_total = (total_stock_value / total_portfolio_value * 100) if total_portfolio_value else 0
+    for stock in stocks:
+        current_price = get_current_price(stock.ticker)
+        if current_price is None:
+            continue  # Skip if current price couldn't be fetched
 
-            stocks.append({
-                "ticker": item["ticker"],
-                "quantity": item["quantity"],
-                "profit_loss": profit_loss,
-                "current_value": total_stock_value,
-                "percentage_of_total": percentage_of_total,
-                "past_data": past_data,
-                "weekly_change": weekly_change
-            })
+        total_stock_value = current_price * stock.quantity
+        total_portfolio_value += total_stock_value
 
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"Failed to load portfolio: {e}")
-        abort(500) # Return a 500 Internal Server Error
+        profit_loss = (current_price - stock.purchase_price) * stock.quantity
+        past_data, weekly_change = get_past_data(stock.ticker)  # Fetch weekly data
+        percentage_of_total = (total_stock_value / total_portfolio_value * 100) if total_portfolio_value else 0
+
+        stocks_data.append({
+            "ticker": stock.ticker,
+            "quantity": stock.quantity,
+            "profit_loss": profit_loss,
+            "current_value": total_stock_value,
+            "percentage_of_total": percentage_of_total,
+            "past_data": past_data,
+            "weekly_change": weekly_change
+        })
 
     # Now total_portfolio_value is calculated, we can calculate percentage_of_total
-    for stock in stocks:
+    for stock in stocks_data:
         stock["percentage_of_total"] = (stock["current_value"] / total_portfolio_value) * 100 if total_portfolio_value else 0
 
     return jsonify({
         "total_portfolio_value": total_portfolio_value,
-        "stocks": stocks
+        "stocks": stocks_data
     })
 
+# Define the endpoint for adding a new stock entry to the portfolio
+@app.route('/add_stock', methods=['POST'])
+def add_stock():
+    data = request.get_json()
+
+    if not data:
+        return jsonify({'message': 'No input data provided'}), 400
+
+    ticker = data.get('ticker')
+    quantity = data.get('quantity')
+    purchase_price = data.get('purchase_price')
+
+    # Validation of input data
+    if not ticker or quantity is None or purchase_price is None:
+        return jsonify({'message': 'Missing data for ticker, quantity, or purchase_price'}), 400
+
+    try:
+        # Convert quantity and purchase_price to the correct data types
+        quantity = float(quantity)
+        purchase_price = float(purchase_price)
+    except ValueError:
+        return jsonify({'message': 'Invalid data types for quantity or purchase_price'}), 400
+
+    existing_stock = Stock.query.filter_by(ticker=ticker).first()
+
+    if existing_stock:
+        # If an existing stock is found, update its quantity and purchase_price
+        new_total_quantity = existing_stock.quantity + quantity
+        # Calculate the new average purchase price
+        new_purchase_price = (
+            (existing_stock.purchase_price * existing_stock.quantity) + (purchase_price * quantity)
+        ) / new_total_quantity
+
+        existing_stock.quantity = new_total_quantity
+        existing_stock.purchase_price = new_purchase_price
+        db.session.commit()
+        return jsonify({'message': 'Stock quantity updated successfully'}), 200
+    else:
+        # If no existing stock is found, add a new stock entry
+        new_stock = Stock(ticker=ticker, quantity=quantity, purchase_price=purchase_price)
+        db.session.add(new_stock)
+        db.session.commit()
+        return jsonify({'message': 'Stock added successfully'}), 201
+
+
+# Define the endpoint for handling failed stock addition
+@app.route('/failed_add_stock')
+def failed_add_stock():
+    return jsonify({'message': 'Failed to add stock'}), 500
+
+# Main entry point of the Flask application
 if __name__ == '__main__':
     app.run(debug=True)
