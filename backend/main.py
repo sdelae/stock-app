@@ -4,7 +4,7 @@ from flask import Flask, jsonify, abort, request
 import json
 from flask_cors import CORS
 from sqlalchemy import NullPool
-from models import Stock, db 
+from models import Stock, User, db 
 
 # Initialize a Flask application
 app = Flask(__name__)
@@ -190,6 +190,52 @@ def add_stock():
 def failed_add_stock():
     return jsonify({'message': 'Failed to add stock'}), 500
 
+@app.route('/delete_stock/<ticker>', methods=['DELETE'])
+def delete_stock(ticker):
+    stock = Stock.query.filter_by(ticker=ticker).first()
+    if stock:
+        db.session.delete(stock)
+        db.session.commit()
+        return jsonify({'message': f'Stock {ticker} deleted successfully'}), 200
+    else:
+        return jsonify({'message': 'Stock not found'}), 404
+
 # Main entry point of the Flask application
+# ... (other code remains unchanged)
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    with app.app_context():
+        # Initialize DB (if not already initialized)
+        db.create_all()
+
+        # Example test: Create a new user (or any other operation you want to test)
+        new_user = User(username='test_user', password_hash='test_hash')
+        db.session.add(new_user)
+        
+        # Commit the session to save the user
+        try:
+            db.session.commit()
+            print('User added successfully.')
+        except Exception as e:
+            db.session.rollback()  # Roll back the session in case of error
+            print(f'Error adding user: {e}')
+
+        # Example test: Create a new stock and associate it with the user
+        new_stock = Stock(ticker='AAPL', quantity=10, purchase_price=150.00, user_id=new_user.id)
+        db.session.add(new_stock)
+        
+        # Commit the session to save the stock
+        try:
+            db.session.commit()
+            print('Stock added successfully.')
+        except Exception as e:
+            db.session.rollback()  # Roll back the session in case of error
+            print(f'Error adding stock: {e}')
+
+        # Query the user and their stocks
+        user = User.query.filter_by(username='test_user').first()
+        if user:
+            print(f'Found user: {user.username}')
+            print('Stocks owned by the user:')
+            for stock in user.stocks:
+                print(stock.ticker, stock.quantity)

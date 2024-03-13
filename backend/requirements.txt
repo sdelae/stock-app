@@ -3,3 +3,5 @@ Flask-SQLAlchemy
 Flask-CORS
 oracledb
 requests
+sqlalchemy
+oracledb

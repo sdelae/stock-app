@@ -1,18 +1,28 @@
 from flask_sqlalchemy import SQLAlchemy
 
-# Initialize an instance of the SQLAlchemy class
-# This object will be used as the database adapter
 db = SQLAlchemy()
 
-# Define a Stock class which is a model for the 'stocks' table in the database
-class Stock(db.Model):
+class User(db.Model):
+    __tablename__ = 'users'
     
-    id = db.Column(db.Integer, primary_key=True, autoincrement="auto")  # Primary key, integer type, autoincrement
-    ticker = db.Column(db.String(10), nullable=False)  # Stock ticker symbol, string type, max length 10, cannot be null
-    quantity = db.Column(db.Float, nullable=False)  # Quantity of stocks owned, float type, cannot be null
-    purchase_price = db.Column(db.Float, nullable=False)  # Purchase price of the stock, float type, cannot be null
-
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(255), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    # Relationship to link users to their stocks
+    stocks = db.relationship('Stock', backref='owner', lazy='dynamic')
+    
     def __repr__(self):
-        # This method returns a string that includes the class name and the ticker symbol
-        # of the Stock object whenever it is printed out or displayed in the interpreter
+        return f'<User {self.username}>'
+
+class Stock(db.Model):
+    __tablename__ = 'stocks'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    ticker = db.Column(db.String(10), nullable=False)
+    quantity = db.Column(db.Float, nullable=False)
+    purchase_price = db.Column(db.Float, nullable=False)
+    # Foreign Key to reference an id from the users table
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    
+    def __repr__(self):
         return f'<Stock {self.ticker}>'
