@@ -1,241 +1,143 @@
-import oracledb
 import requests
-from flask import Flask, jsonify, abort, request
-import json
+from flask import Flask, jsonify, request
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.pool import NullPool
+import hashlib
 from flask_cors import CORS
-from sqlalchemy import NullPool
-from models import Stock, User, db 
+import uuid
+import oracledb
+from models import db, Users, User_stocks 
+import click
+from flask.cli import with_appcontext
 
 # Initialize a Flask application
 app = Flask(__name__)
-# Enable CORS for all domains on all routes
-CORS(app, resources={r"/*": {"origins": "*"}})
+# Enable Cross-Origin Resource Sharing (CORS) for all domains on all routes
+CORS(app)
+app.config['CORS_HEADERS'] = 'Content-Type'
+# Set a secret key for session management and cookies
+app.secret_key = "VFVETDZPXW4IOBLDKK"
 
-# Oracle database credentials and connection string
+# Oracle database credentials and connection string configuration
 un = 'ADMIN'
 pw = 'CapstoneProject2024'
-dsn = '(description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1521)(host=adb.eu-madrid-1.oraclecloud.com))(connect_data=(service_name=gb3264e6f832c8b_stockdatabase_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))'
+dsn = '(description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1521)(host=adb.eu-madrid-1.oraclecloud.com))(connect_data=(service_name=gb3264e6f832c8b_database1_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))'
 
 # Create a connection pool to the Oracle database
 pool = oracledb.create_pool(user=un, password=pw, dsn=dsn)
-
-# Configure the Flask app to use the SQLAlchemy ORM with Oracle database
+# SQLAlchemy configuration for Oracle database connection
 app.config['SQLALCHEMY_DATABASE_URI'] = 'oracle+oracledb://'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'creator': pool.acquire,
-    'poolclass': NullPool
+    'creator': pool.acquire,  
+    'poolclass': NullPool  
 }
 
-# Initialize the database with the app
-db.init_app(app)
+db.init_app(app) 
 
-# Create the database tables
-with app.app_context():
+# Flask CLI command to create the database tables
+@app.cli.command("create_db")
+@with_appcontext
+def create_db_command():
+    """Create database tables."""
     db.create_all()
+    click.echo("Database tables created.")
 
-# Function to make a generic API request and handle errors
-def make_api_request(url):
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        return response.json()
-    except requests.RequestException as e:
-        print(f"API request error: {e}")
-        return None
+# Alpha Vantage API key for fetching stock information
+apikey = 'ZSLQEIEAP5XSK6N0'
 
-# Function to get the current price of a stock using an external API
-def get_current_price(ticker):
-    """Fetch the current price of a stock using Alpha Vantage API."""
-    try:
-        data = make_api_request(f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={ticker}&apikey=ZSLQEIEAP5XSK6N0")
-        if data:
-            return float(data["Global Quote"]["05. price"])
-        return None
-    except Exception as e:
-        print(f"Error fetching current price for {ticker}: {e}")
-        return None
-    
-# Function to get historical weekly data for a stock
-def get_past_data(ticker):
-    """Fetch weekly time series data for the past two months for a stock and calculate weekly change."""
-    try:
-        # Fetch the data using a standardized API request function
-        data = make_api_request(f"https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol={ticker}&apikey=ZSLQEIEAP5XSK6N0")
-        
-        if not data or "Weekly Time Series" not in data:
-            raise ValueError("Weekly Time Series data is not in the response")
+# Function to fetch stock information from Alpha Vantage API
+def fetch_stock_info(ticker):
+    response = requests.get(f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={ticker}&apikey={API_KEY}")
+    return response.json()
 
-        # Process the data using the dedicated function
-        formatted_data, weekly_change = process_weekly_data(data)
+# Function to generate a unique identifier for a stock item in the portfolio
+def generate_stock_id():
+    return str(uuid.uuid4())
 
-        return formatted_data, weekly_change
-    except requests.HTTPError as http_err:
-        print(f"HTTP error occurred: {http_err}")
-    except ValueError as val_err:
-        print(f"Value error: {val_err}")
-    except Exception as e:
-        print(f"Other error occurred: {e}")
-    return [], 0
+# Function to hash a password using SHA-256
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
 
-# Function to process the received weekly data
-def process_weekly_data(data):
-    """Extract and process the weekly time series data from the API response."""
-    weekly_data = list(data["Weekly Time Series"].items())[:8]
-    
-    if len(weekly_data) >= 2:
-        last_close = float(weekly_data[0][1]['4. close'])
-        prev_close = float(weekly_data[1][1]['4. close'])
-        weekly_change = (last_close - prev_close) / prev_close * 100
+# Route to display a user's portfolio
+@app.route('/portfolio/<user_id>', methods=["GET"])
+def display_portfolio(user_id):
+    portfolio_items = User_stocks.query.filter_by(user_id=user_id).all()
+    portfolio_summary = {}
+    for item in portfolio_items:
+        stock_info = fetch_stock_info(item.ticker)
+        portfolio_summary[item.ticker] = {
+            "quantity": item.quantity,
+            "current_price": stock_info["Global Quote"]["05. price"]
+        }
+    return jsonify(portfolio_summary)
+
+# Route to get detailed stock information
+@app.route('/stock/<ticker>', methods=["GET"])
+def get_stock_details(ticker):
+    stock_details = fetch_stock_info(ticker)
+    return jsonify(stock_details)
+
+# Route for user login
+@app.route('/user/login', methods=["POST"])
+def user_login():
+    credentials = request.json
+    user = Users.query.filter_by(user_mail=credentials["email"], password=hash_password(credentials["password"])).first()
+    if user:
+        return jsonify({"message": "Login successful"}), 200
     else:
-        weekly_change = 0  # Default to 0 if not enough data
+        return jsonify({"message": "Invalid credentials"}), 401
 
-    formatted_data = [{
-        "date": week[0],
-        "open": float(week[1]['1. open']),
-        "high": float(week[1]['2. high']),
-        "low": float(week[1]['3. low']),
-        "close": float(week[1]['4. close']),
-        "volume": int(week[1]['5. volume'])
-    } for week in weekly_data]
-
-    return formatted_data, weekly_change
-
-# Define the root endpoint which provides aggregated portfolio data
-@app.route('/')
-def home():
-    """Endpoint that returns portfolio data including each stock's contribution percentage."""
-    total_portfolio_value = 0
-    stocks_data = []
-    stocks = Stock.query.all()  # Retrieve all stock records from the database
-
-    for stock in stocks:
-        current_price = get_current_price(stock.ticker)
-        if current_price is None:
-            continue  # Skip if current price couldn't be fetched
-
-        total_stock_value = current_price * stock.quantity
-        total_portfolio_value += total_stock_value
-
-        profit_loss = (current_price - stock.purchase_price) * stock.quantity
-        past_data, weekly_change = get_past_data(stock.ticker)  # Fetch weekly data
-        percentage_of_total = (total_stock_value / total_portfolio_value * 100) if total_portfolio_value else 0
-
-        stocks_data.append({
-            "ticker": stock.ticker,
-            "quantity": stock.quantity,
-            "profit_loss": profit_loss,
-            "current_value": total_stock_value,
-            "percentage_of_total": percentage_of_total,
-            "past_data": past_data,
-            "weekly_change": weekly_change
-        })
-
-    # Now total_portfolio_value is calculated, we can calculate percentage_of_total
-    for stock in stocks_data:
-        stock["percentage_of_total"] = (stock["current_value"] / total_portfolio_value) * 100 if total_portfolio_value else 0
-
-    return jsonify({
-        "total_portfolio_value": total_portfolio_value,
-        "stocks": stocks_data
-    })
-
-# Define the endpoint for adding a new stock entry to the portfolio
-@app.route('/add_stock', methods=['POST'])
-def add_stock():
-    data = request.get_json()
-
-    if not data:
-        return jsonify({'message': 'No input data provided'}), 400
-
-    ticker = data.get('ticker')
-    quantity = data.get('quantity')
-    purchase_price = data.get('purchase_price')
-
-    # Validation of input data
-    if not ticker or quantity is None or purchase_price is None:
-        return jsonify({'message': 'Missing data for ticker, quantity, or purchase_price'}), 400
-
-    try:
-        # Convert quantity and purchase_price to the correct data types
-        quantity = float(quantity)
-        purchase_price = float(purchase_price)
-    except ValueError:
-        return jsonify({'message': 'Invalid data types for quantity or purchase_price'}), 400
-
-    existing_stock = Stock.query.filter_by(ticker=ticker).first()
-
-    if existing_stock:
-        # If an existing stock is found, update its quantity and purchase_price
-        new_total_quantity = existing_stock.quantity + quantity
-        # Calculate the new average purchase price
-        new_purchase_price = (
-            (existing_stock.purchase_price * existing_stock.quantity) + (purchase_price * quantity)
-        ) / new_total_quantity
-
-        existing_stock.quantity = new_total_quantity
-        existing_stock.purchase_price = new_purchase_price
+# Route to update a user's profile
+@app.route('/user/update', methods=["POST"])
+def update_user_profile():
+    user_data = request.json
+    user = Users.query.filter_by(user_id=user_data["user_id"]).first()
+    if user:
+        user.user_name = user_data.get("name", user.user_name)
+        user.user_mail = user_data.get("email", user.user_mail)
         db.session.commit()
-        return jsonify({'message': 'Stock quantity updated successfully'}), 200
+        return jsonify({"message": "User profile updated successfully"}), 200
     else:
-        # If no existing stock is found, add a new stock entry
-        new_stock = Stock(ticker=ticker, quantity=quantity, purchase_price=purchase_price)
-        db.session.add(new_stock)
+        return jsonify({"message": "User not found"}), 404
+
+# Route to add a new item to the user's portfolio
+@app.route('/portfolio/add', methods=["POST"])
+def add_portfolio_item():
+    item_data = request.json
+    new_item = User_stocks(
+        stock_id=generate_stock_id(),
+        user_id=item_data["user_id"],
+        ticker=item_data["ticker"],
+        quantity=item_data["quantity"]
+    )
+    db.session.add(new_item)
+    db.session.commit()
+    return jsonify({"message": "Portfolio item added successfully"}), 201
+
+# Route to update an existing portfolio item
+@app.route('/portfolio/update', methods=["POST"])
+def update_portfolio_item():
+    item_data = request.json
+    portfolio_item = User_stocks.query.filter_by(stock_id=item_data["item_id"]).first()
+    if portfolio_item:
+        portfolio_item.quantity = item_data.get("quantity", portfolio_item.quantity)
         db.session.commit()
-        return jsonify({'message': 'Stock added successfully'}), 201
-
-
-# Define the endpoint for handling failed stock addition
-@app.route('/failed_add_stock')
-def failed_add_stock():
-    return jsonify({'message': 'Failed to add stock'}), 500
-
-@app.route('/delete_stock/<ticker>', methods=['DELETE'])
-def delete_stock(ticker):
-    stock = Stock.query.filter_by(ticker=ticker).first()
-    if stock:
-        db.session.delete(stock)
-        db.session.commit()
-        return jsonify({'message': f'Stock {ticker} deleted successfully'}), 200
+        return jsonify({"message": "Portfolio item updated successfully"}), 200
     else:
-        return jsonify({'message': 'Stock not found'}), 404
+        return jsonify({"message": "Portfolio item not found"}), 404
 
-# Main entry point of the Flask application
-# ... (other code remains unchanged)
+# Route to delete an item from the user's portfolio
+@app.route('/portfolio/delete', methods=["POST"])
+def delete_portfolio_item():
+    item_data = request.json
+    portfolio_item = User_stocks.query.filter_by(stock_id=item_data["item_id"]).first()
+    if portfolio_item:
+        db.session.delete(portfolio_item)
+        db.session.commit()
+        return jsonify({"message": "Portfolio item deleted successfully"}), 200
+    else:
+        return jsonify({"message": "Portfolio item not found"}), 404
 
-if __name__ == '__main__':
-    with app.app_context():
-        # Initialize DB (if not already initialized)
-        db.create_all()
-
-        # Example test: Create a new user (or any other operation you want to test)
-        new_user = User(username='test_user', password_hash='test_hash')
-        db.session.add(new_user)
-        
-        # Commit the session to save the user
-        try:
-            db.session.commit()
-            print('User added successfully.')
-        except Exception as e:
-            db.session.rollback()  # Roll back the session in case of error
-            print(f'Error adding user: {e}')
-
-        # Example test: Create a new stock and associate it with the user
-        new_stock = Stock(ticker='AAPL', quantity=10, purchase_price=150.00, user_id=new_user.id)
-        db.session.add(new_stock)
-        
-        # Commit the session to save the stock
-        try:
-            db.session.commit()
-            print('Stock added successfully.')
-        except Exception as e:
-            db.session.rollback()  # Roll back the session in case of error
-            print(f'Error adding stock: {e}')
-
-        # Query the user and their stocks
-        user = User.query.filter_by(username='test_user').first()
-        if user:
-            print(f'Found user: {user.username}')
-            print('Stocks owned by the user:')
-            for stock in user.stocks:
-                print(stock.ticker, stock.quantity)
+if __name__ == "__main__":
+    app.run(debug=True)

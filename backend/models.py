@@ -1,28 +1,34 @@
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import relationship
 
 db = SQLAlchemy()
 
-class User(db.Model):
-    __tablename__ = 'users'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(255), unique=True, nullable=False)
-    password_hash = db.Column(db.String(255), nullable=False)
-    # Relationship to link users to their stocks
-    stocks = db.relationship('Stock', backref='owner', lazy='dynamic')
-    
-    def __repr__(self):
-        return f'<User {self.username}>'
+class Users(db.Model):
+    user_id = db.Column(db.String(255), primary_key=True)
+    password = db.Column(db.String(255), nullable=False)
+    user_name = db.Column(db.String(255), nullable=False)
+    user_mail = db.Column(db.String(255), nullable=False)
 
-class Stock(db.Model):
-    __tablename__ = 'stocks'
+    def dict(self):
+        return {
+            'user_id': self.user_id,
+            'password': self.password,
+            'user_name': self.user_name,
+            'user_mail': self.user_mail
+        }
     
-    id = db.Column(db.Integer, primary_key=True)
-    ticker = db.Column(db.String(10), nullable=False)
-    quantity = db.Column(db.Float, nullable=False)
-    purchase_price = db.Column(db.Float, nullable=False)
-    # Foreign Key to reference an id from the users table
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+class User_stocks(db.Model):
+    stock_id = db.Column(db.String(255), primary_key=True)
+    user_id = db.Column(db.String(255), db.ForeignKey('users.user_id'), nullable=False)
+    ticker = db.Column(db.String(255), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    user = relationship('Users', backref='user_stocks')
+
+    def dict(self):
+        return {
+            'stock_id': self.stock_id,
+            'user_id': self.user_id,
+            'ticker': self.ticker,
+            'quantity': self.quantity,
+        }
     
-    def __repr__(self):
-        return f'<Stock {self.ticker}>'
