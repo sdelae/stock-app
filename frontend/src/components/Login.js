@@ -1,31 +1,30 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom'; // Import useNavigate hook
+import { useNavigate } from 'react-router-dom';
 
-function Login({ setLoggedIn, setShowSignUp }) {
+function Login({ onLogin }) {
   const [user_name, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const navigate = useNavigate(); // Instantiate useNavigate hook
+  const navigate = useNavigate();
 
   const handleSubmit = async (event) => {
     event.preventDefault();
 
     try {
-      // Replace with your actual backend API endpoint for login
-      const response = await fetch('http://localhost:5000/user/login', {
+      const response = await fetch('https://mcsbt-capstone-sara.ew.r.appspot.com/user/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ user_name, password }),
       });
+
       const loginResponse = await response.json();
 
-      // Check your backend response format to use the correct property names
-      if (loginResponse.message === "Login successful") {
-        setLoggedIn(true);
+      if (response.ok && loginResponse.user_id) {
+        onLogin(true);
         localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('userId', loginResponse.userId); // Adjust as per your backend response
-        navigate('/portfolio'); // Redirect to portfolio page
+        localStorage.setItem('userId', loginResponse.user_id);
+        navigate('/portfolio');
       } else {
         alert('Login failed: ' + (loginResponse.error || 'Unknown error'));
       }
@@ -58,9 +57,6 @@ function Login({ setLoggedIn, setShowSignUp }) {
           />
         </div>
         <button type="submit">Login</button>
-        <button type="button" onClick={() => setShowSignUp(true)}>
-          Don't have an account? Sign Up
-        </button>
       </form>
     </div>
   );

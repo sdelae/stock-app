@@ -20,11 +20,10 @@ function ModalStocks({ postStock, setShowModal, show, portfolio }) {
 
     try {
       // Call the function passed as prop to post the stock data
-      // You might need to adjust the implementation based on your API and what postStock expects
       const response = await postStock(stockData);
       
       if (response.success) {
-        // If the stock was successfully added/updated, you might want to update the portfolio state or refetch it
+        // If the stock was successfully added/updated
         console.log("Stock successfully updated.");
       } else {
         console.error("Failed to update the stock:", response.message);

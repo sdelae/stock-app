@@ -14,7 +14,10 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 app = Flask(__name__)
-CORS(app)
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "*"}})
 app.config['CORS_HEADERS'] = 'Content-Type'
 app.secret_key = "28d8c1d608fa26a304bc47063e1d4807"
 
@@ -124,6 +127,19 @@ def modify_portfolio():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+    
+@app.route('/portfolio/<user_id>', methods=["GET"])
+def get_portfolio(user_id):
+    app.logger.info(f"Fetching portfolio for user: {user_id}")
+    try:
+        # Fetch portfolio from database
+        portfolio_items = User_stocks.query.filter_by(user_id=user_id).all()
+        # Convert to JSON serializable format
+        portfolio_data = [{"ticker": item.ticker, "quantity": item.quantity} for item in portfolio_items]
+        return jsonify(portfolio_data), 200
+    except Exception as e:
+        app.logger.error(f"An error occurred: {e}")
+        return jsonify({"error": "Internal Server Error"}), 500
 
 @app.route('/user/login', methods=["POST"])
 def user_login():
