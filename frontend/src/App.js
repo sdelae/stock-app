@@ -1,122 +1,110 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Accordion } from 'react-bootstrap';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import './App.css';
-import StockSummary from './StockSummary';
-import PortfolioBreakdown from './PortfolioBreakdown';
-import StockDetail from './StockDetail';
+import Portfolio from './components/Portfolio.js'; 
+import Login from './components/Login.js'; 
+import ModalStocks from './components/ModalStocks.js'; 
 
-function AddStockForm({ onNewStock }) {
-  // State hooks for the form inputs
-  const [ticker, setTicker] = useState('');
-  const [quantity, setQuantity] = useState('');
-  const [purchasePrice, setPurchasePrice] = useState('');
+function App() {
+  // State to manage the authentication and data
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [userId, setUserId] = useState('');
+  const [data, setData] = useState([]);
+  const [showModal, setShowModal] = useState(false);
 
-  // Function to handle form submission
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    // Call the onNewStock function passed as a prop with the new stock data
-    onNewStock({ ticker, quantity: Number(quantity), purchase_price: Number(purchasePrice) });
-    // Reset the form fields after submission
-    setTicker('');
-    setQuantity('');
-    setPurchasePrice('');
+  const fetchData = async (userId) => {
+    try {
+      const response = await fetch(`http://127.0.0.1:5000/portfolio/${userId}`);
+      const jsonData = await response.json();
+      setData(jsonData);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
   };
 
-  // Render the form component
+  const fetchLogin = async (credentials) => {
+    try {
+      const response = await fetch(`http://127.0.0.1:5000/user/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(credentials),
+      });
+  
+      // Check if the response is ok (status in the range 200-299)
+      if (!response.ok) {
+        throw new Error(`Server returned status code ${response.status}`);
+      }
+  
+      const jsonData = await response.json();
+      if (jsonData.success) {
+        setLoggedIn(true);
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('userId', jsonData.userId);
+      } else {
+        console.error('Login failed:', jsonData.message);
+      }
+    } catch (error) {
+      console.error('Error during login:', error);
+    }
+  };  
+
+  const postStock = async (stockData) => {
+    try {
+      const response = await fetch(`http://127.0.0.1:5000/portfolio/update`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userId, // Assuming you need to send userId along with the stock data
+          ...stockData,
+        }),
+      });
+      const jsonData = await response.json();
+      if (jsonData.success) {
+        console.log('Stock updated successfully');
+        // Optionally, fetch the updated portfolio data
+        fetchData(userId);
+      } else {
+        // Handle failure
+        console.error('Failed to update the stock:', jsonData.message);
+      }
+    } catch (error) {
+      console.error('Error updating stock:', error);
+    }
+  };  
+
+  // Fetch data when user logs in
+  useEffect(() => {
+    if (loggedIn) {
+      fetchData(userId);
+    }
+  }, [loggedIn, userId]);
+
+  // Effect to check if user is already logged in when app loads
+  useEffect(() => {
+    const storedUserId = localStorage.getItem('userId');
+    const isLogged = localStorage.getItem('isLoggedIn') === 'true';
+    if (isLogged && storedUserId) {
+      setLoggedIn(true);
+      setUserId(storedUserId);
+    }
+  }, []);
+
   return (
-    <form onSubmit={handleSubmit}>
-      <input
-        value={ticker}
-        onChange={(e) => setTicker(e.target.value.toUpperCase())}
-        type="text"
-        placeholder="Ticker"
-        required
-      />
-      <input
-        value={quantity}
-        onChange={(e) => setQuantity(e.target.value)}
-        type="number"
-        placeholder="Quantity"
-        required
-      />
-      <input
-        value={purchasePrice}
-        onChange={(e) => setPurchasePrice(e.target.value)}
-        type="number"
-        placeholder="Purchase Price"
-        step="0.01"
-        required
-      />
-      <button type="submit">Add to Portfolio</button>
-    </form>
+    <div className="App">
+      {loggedIn ? (
+        <>
+          <Portfolio data={data} />
+          {showModal && (
+          <ModalStocks postStock={postStock} setShowModal={setShowModal} />
+          )}
+        </>
+      ) : (
+        <Login fetchLogin={fetchLogin} setLoggedIn={setLoggedIn} />
+      )}
+    </div>
   );
 }
 
-function App() {
-  const [stocks, setStocks] = useState([]);
-  const [totalValue, setTotalValue] = useState(0);
-  const [activeKey, setActiveKey] = useState(null);
-  const [error, setError] = useState(null);
-
-  const handleNewStock = (newStockData) => {
-    axios.post('https://mcsbt-integration-sara.ew.r.appspot.com/add_stock', newStockData)
-      .then(response => {
-        fetchStocks(); // Call fetchStocks to reload data after adding a new stock
-      })
-      .catch(error => {
-        console.error('Error adding stock: ', error);
-        setError(error);
-      });
-  };
-
-  const removeStock = (ticker) => {
-    axios.delete(`https://mcsbt-integration-sara.ew.r.appspot.com/delete_stock/${ticker}`)
-      .then(() => {
-        fetchStocks(); // Refresh the stock list after successful deletion
-      })
-      .catch(error => {
-        console.error('Error removing stock:', error);
-      });
-  };
-
-  const fetchStocks = () => {
-    axios.get('https://mcsbt-integration-sara.ew.r.appspot.com/')
-      .then(response => {
-        setStocks(response.data.stocks);
-        setTotalValue(response.data.total_portfolio_value);
-      })
-      .catch(error => {
-        console.error('Error fetching data:', error);
-        setError(error);
-      });
-  };
-
-  // useEffect hook to fetch stock data on component mount
-  useEffect(() => {
-    fetchStocks();
-  }, []);
-
-  if (error) {
-    return <div>Error: {error.message}</div>;
-  }
-
-// Render the main app structure
-return (
-  <div className="App">
-    <AddStockForm onNewStock={handleNewStock} />
-    <StockSummary totalValue={totalValue} />
-    <PortfolioBreakdown stocks={stocks} removeStock={removeStock} />
-    {/* Map over the stocks array to create an Accordion component for each stock's 2-month history */}
-      <Accordion defaultActiveKey="0" activeKey={activeKey}>
-      {stocks.map((stock, index) => (
-      <StockDetail key={index} stock={stock} index={index} setActiveKey={setActiveKey} activeKey={activeKey} />
-      ))}
-    </Accordion>
-  </div>
-);
-}
-
-// Export the App component for use in other files
 export default App;
