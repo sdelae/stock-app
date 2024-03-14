@@ -1,3 +1,4 @@
+from utilities import hash_password
 import click
 from flask.cli import with_appcontext
 import requests
@@ -9,11 +10,27 @@ from flask_cors import CORS
 import uuid
 import oracledb
 from models import db, Users, User_stocks 
+import logging
+from logging.handlers import RotatingFileHandler
 
 app = Flask(__name__)
 CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
 app.secret_key = "28d8c1d608fa26a304bc47063e1d4807"
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)  # Set the logging level you want here
+
+# Create a file handler which logs even debug messages
+handler = RotatingFileHandler('app.log', maxBytes=10000, backupCount=1)
+handler.setLevel(logging.INFO)  # Set the logging level for the file handler
+
+# Create a logging format
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+
+# Add the handlers to the logger
+app.logger.addHandler(handler)
 
 # Oracle database credentials and connection string configuration
 un = 'ADMIN'
@@ -51,6 +68,12 @@ def fetch_stock_info(ticker):
         return stock_info
     else:
         return None
+    
+def hash_password(password):
+    return hashlib.sha256(password.encode('utf-8')).hexdigest()
+
+# Manually hash the single user's password
+password = hash_password('hello')
 
 @app.route('/search/<ticker>', methods=["GET"])
 def search_stock(ticker):
@@ -105,15 +128,30 @@ def modify_portfolio():
 @app.route('/user/login', methods=["POST"])
 def user_login():
     credentials = request.json
-    user_name = credentials.get("user_name")  # Use user_name to match your model
-    password = credentials.get("password", "").encode("utf-8")
-    hashed_password = hashlib.sha256(password).hexdigest()
+    user_name = credentials.get("user_name")
+    password = credentials.get("password")
 
-    user = Users.query.filter_by(user_name=user_name, password=hashed_password).first()
-    if user:
-        return jsonify({"message": "Login successful", "user_id": user.user_id}), 200
-    else:
-        return jsonify({"error": "Invalid credentials"}), 401
+    app.logger.info(f"Attempting login for user: {user_name}")
+
+    try:
+        # Manually hash the incoming password to compare
+        password = hashlib.sha256(password.encode('utf-8')).hexdigest()
+
+        # Fetch the user from the database
+        user = Users.query.filter_by(user_name=user_name).first()
+
+        if user and user.password == password:
+            # Successful login
+            app.logger.info(f"User {user_name} logged in successfully.")
+            return jsonify({"message": "Login successful", "user_id": user.user_id}), 200
+        else:
+            # Failed login
+            app.logger.warning(f"Login failed for user {user_name}.")
+            return jsonify({"error": "Invalid credentials"}), 401
+    except Exception as e:
+        app.logger.error(f"An error occurred: {e}")
+        return jsonify({"error": "Internal Server Error"}), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True)
