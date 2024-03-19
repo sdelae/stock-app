@@ -5,3 +5,4 @@ oracledb
 requests
 sqlalchemy
 oracledb
+Flask-Bcrypt
