@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 import Portfolio from './components/Portfolio';
 import Login from './components/Login';
+import Register from './components/Register';
 import ModalStocks from './components/ModalStocks';
 
 function App() {
@@ -10,7 +11,8 @@ function App() {
   const [data, setData] = useState([]);
   const [showModal, setShowModal] = useState(false);
 
-  const fetchUrl = 'https://mcsbt-capstone-sara.ew.r.appspot.com/';
+  const navigate = useNavigate();
+  const fetchUrl = 'http://127.0.0.1:5000';
 
   const fetchData = useCallback(async () => {
     if (!userId) return;
@@ -26,7 +28,7 @@ function App() {
 
   const handleLogin = async (credentials) => {
     try {
-      const response = await fetch(`${fetchUrl}/user/login`, {
+      const response = await fetch(`${fetchUrl}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials),
@@ -39,11 +41,13 @@ function App() {
         localStorage.setItem('userId', jsonData.user_id);
         setUserId(jsonData.user_id);
         fetchData();
+        navigate('/portfolio');
       } else {
-        console.error('Login failed:', jsonData.error);
+        alert('Login failed: ' + (jsonData.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error during login:', error);
+      alert('Login failed: ' + error.message);
     }
   };
 
@@ -53,11 +57,12 @@ function App() {
     localStorage.removeItem('userId');
     setUserId('');
     setData([]);
+    navigate('/');
   };
 
   const postStock = async (stockData) => {
     try {
-      const response = await fetch(`https://mcsbt-capstone-sara.ew.r.appspot.com/`, {
+      const response = await fetch(`${fetchUrl}/portfolio/modify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -67,18 +72,12 @@ function App() {
           userId: userId, 
         }),
       });
-      if (!response.ok) {
-        throw new Error('Failed to post stock data');
-      }
+      if (!response.ok) throw new Error('Failed to post stock data');
       const jsonData = await response.json();
       if (jsonData.success) {
-        // If the stock was added or updated successfully, you might want to:
-        // 1. Close the modal
         setShowModal(false);
-        // 2. Fetch the updated portfolio data
         fetchData();
       } else {
-        // Handle any errors returned by the server
         console.error('Failed to post stock data:', jsonData.message);
       }
     } catch (error) {
@@ -90,14 +89,22 @@ function App() {
     if (loggedIn) {
       fetchData();
     }
-  }, [loggedIn, userId, fetchData]); 
+  }, [loggedIn, userId, fetchData]);
 
   return (
     <div className="App">
       <Routes>
-        <Route path="/" element={loggedIn ? <Navigate replace to="/portfolio" /> : <Login onLogin={handleLogin} />} />
+        <Route path="/" element={
+          loggedIn ? <Navigate replace to="/portfolio" /> : (
+            <div>
+              <Login onLogin={handleLogin} />
+              <p>Don't have an account? <Link to="/register">Register here</Link></p>
+            </div>
+          )
+        } />
         <Route path="/portfolio" element={loggedIn ? <Portfolio data={data} /> : <Navigate replace to="/" />} />
-        {/* Additional routes can be added here */}
+        <Route path="/register" element={<Register />} /> 
+        <Route path="/login" element={<Login onLogin={setLoggedIn} />} />
       </Routes>
       {loggedIn && (
         <>

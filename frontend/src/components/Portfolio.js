@@ -17,7 +17,7 @@ function DisplayPortfolio({ handleDetailsClick, setShowModal }) {
   const handleSearch = async (event) => {
     const symbol = event.target.value;
     if (symbol) {
-      const response = await fetch(`https://mcsbt-capstone-sara.ew.r.appspot.com/search/${symbol}`);
+      const response = await fetch(`http://127.0.0.1:5000/search/${symbol}`);
       const data = await response.json();
       setSearchResults(data.bestMatches);
     }
@@ -28,7 +28,7 @@ function DisplayPortfolio({ handleDetailsClick, setShowModal }) {
     async function fetchPortfolio() {
       if (userId) {
         try {
-          const response = await fetch(`https://mcsbt-capstone-sara.ew.r.appspot.com/portfolio/${userId}`);
+          const response = await fetch(`http://127.0.0.1:5000/portfolio/${userId}`);
           if (!response.ok) throw new Error('Failed to fetch');
           const data = await response.json();
           setPortfolioData(data);
