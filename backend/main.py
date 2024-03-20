@@ -29,9 +29,8 @@ app.logger.addHandler(handler)
 # Oracle database credentials and connection string configuration
 un = 'ADMIN'
 pw = 'CapstoneProject2024'
-dsn = '(description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1521)(host=adb.eu-madrid-1.oraclecloud.com))(connect_data=(service_name=gb3264e6f832c8b_databasestocks_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))'
+dsn = '(description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1521)(host=adb.eu-madrid-1.oraclecloud.com))(connect_data=(service_name=gec19704fd34d4a_c42uk8h9eko6mmm7_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))'
 
-# Setup database connection
 pool = oracledb.create_pool(user=un, password=pw, dsn=dsn)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'oracle+oracledb://'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -85,23 +84,33 @@ def register_user():
 # User login endpoint
 @app.route('/login', methods=["POST"])
 def user_login():
-    credentials = request.get_json()
-    user_name = credentials.get("user_name")
-    password = credentials.get("password")
+    try:
+        credentials = request.get_json()
+        if not credentials:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        user_name = credentials.get("user_name")
+        password = credentials.get("password")
 
-    app.logger.info(f"Attempting login for user: {user_name}")
-    user = Users.query.filter_by(user_name=user_name).first()
+        # You need to retrieve the user object from the database first
+        user = Users.query.filter_by(user_name=user_name).first()
+        
+        if user and bcrypt.check_password_hash(user.password, password):
+            app.logger.info(f"User {user_name} logged in successfully.")
+            return jsonify({"message": "Login successful", "user_id": user.user_id}), 200
+        else:
+            app.logger.warning(f"Login failed for user {user_name}.")
+            return jsonify({"error": "Invalid credentials"}), 401
     
-    if user and bcrypt.check_password_hash(user.password, password):
-        app.logger.info(f"User {user_name} logged in successfully.")
-        return jsonify({"message": "Login successful", "user_id": user.user_id}), 200
-    else:
-        app.logger.warning(f"Login failed for user {user_name}.")
-        return jsonify({"error": "Invalid credentials"}), 401
+    except Exception as e:
+        app.logger.error(f"An error occurred during login: {e}")
+        return jsonify({"error": "Internal Server Error"}), 500
+
     
 @app.route('/search/<ticker>', methods=["GET"])
 def search_stock(ticker):
     response = requests.get(f"https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords={ticker}&apikey={apikey}")
+    
     if response.ok:
         data = response.json()
         return jsonify(data["bestMatches"])
@@ -110,10 +119,14 @@ def search_stock(ticker):
 
 @app.route('/portfolio/modify', methods=["POST"])
 def modify_portfolio():
-    item_data = request.json
+    item_data = request.get_json()  # Use get_json() method to parse JSON data
+    if not item_data:
+        return jsonify({"error": "No JSON data provided"}), 400
+
     user_id = item_data.get("user_id")
     ticker = item_data.get("ticker")
     quantity = item_data.get("quantity")
+    purchase_price = item_data.get("purchase_price")
     action = item_data.get("action")
     stock_id = item_data.get("stock_id", uuid.uuid4().hex)
 
@@ -122,7 +135,7 @@ def modify_portfolio():
 
     try:
         if action == "add":
-            new_item = User_stocks(stock_id=stock_id, user_id=user_id, ticker=ticker, quantity=quantity)
+            new_item = User_stocks(stock_id=stock_id, user_id=user_id, ticker=ticker, quantity=quantity, purchase_price=purchase_price)
             db.session.add(new_item)
             db.session.commit()
             return jsonify({"message": "Stock added successfully"}), 201
@@ -131,6 +144,7 @@ def modify_portfolio():
             item = User_stocks.query.filter_by(stock_id=stock_id, user_id=user_id).first()
             if item:
                 item.quantity = quantity
+                item.purchase_price = purchase_price
                 db.session.commit()
                 return jsonify({"message": "Stock updated successfully"}), 200
             else:
@@ -147,20 +161,31 @@ def modify_portfolio():
 
     except Exception as e:
         db.session.rollback()
+        app.logger.error(f"An error occurred during portfolio modification: {e}")
         return jsonify({"error": str(e)}), 500
     
 @app.route('/portfolio/<user_id>', methods=["GET"])
 def get_portfolio(user_id):
     app.logger.info(f"Fetching portfolio for user: {user_id}")
+
     try:
         # Fetch portfolio from database
         portfolio_items = User_stocks.query.filter_by(user_id=user_id).all()
         # Convert to JSON serializable format
-        portfolio_data = [{"ticker": item.ticker, "quantity": item.quantity} for item in portfolio_items]
+        portfolio_data = [
+            {
+                "ticker": item.ticker, 
+                "quantity": item.quantity, 
+                "purchase_price": item.purchase_price
+            }
+            for item in portfolio_items
+        ]
         return jsonify(portfolio_data), 200
+    
     except Exception as e:
-        app.logger.error(f"An error occurred: {e}")
+        app.logger.error(f"An error occurred while fetching the portfolio: {e}")
         return jsonify({"error": "Internal Server Error"}), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True)

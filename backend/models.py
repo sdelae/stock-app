@@ -22,6 +22,7 @@ class User_stocks(db.Model):
     user_id = db.Column(db.String(255), db.ForeignKey('users.user_id'), nullable=False)
     ticker = db.Column(db.String(255), nullable=False)
     quantity = db.Column(db.Integer, nullable=False)
+    purchase_price = db.Column(db.Float, nullable=False)
     user = relationship('Users', backref='user_stocks')
 
     def dict(self):
@@ -30,5 +31,7 @@ class User_stocks(db.Model):
             'user_id': self.user_id,
             'ticker': self.ticker,
             'quantity': self.quantity,
+            'purchase_price': self.purchase_price,
+
         }
     
