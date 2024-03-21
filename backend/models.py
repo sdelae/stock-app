@@ -1,37 +1,28 @@
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import relationship
+
 
 db = SQLAlchemy()
+class User(db.Model):
+    __tablename__ = 'USERS'
+    USER_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    USERNAME = db.Column(db.String(255), unique=True, nullable=False)
+    EMAIL = db.Column(db.String(255), unique=True, nullable=False)
+    PASSWORD = db.Column(db.String(128), nullable=False)
+    Stock = db.relationship('Stock', backref='owner', lazy='dynamic')
 
-class Users(db.Model):
-    user_id = db.Column(db.String(255), primary_key=True)
-    password = db.Column(db.String(255), nullable=False)
-    user_name = db.Column(db.String(255), nullable=False)
-    user_mail = db.Column(db.String(255), nullable=False)
-
-    def dict(self):
-        return {
-            'user_id': self.user_id,
-            'password': self.password,
-            'user_name': self.user_name,
-            'user_mail': self.user_mail
-        }
+    def __init__(self, username, email, password):  
+        self.USERNAME = username
+        self.EMAIL = email
+        self.PASSWORD = password
     
-class User_stocks(db.Model):
-    stock_id = db.Column(db.String(255), primary_key=True)
-    user_id = db.Column(db.String(255), db.ForeignKey('users.user_id'), nullable=False)
-    ticker = db.Column(db.String(255), nullable=False)
-    quantity = db.Column(db.Integer, nullable=False)
-    purchase_price = db.Column(db.Float, nullable=False)
-    user = relationship('Users', backref='user_stocks')
 
-    def dict(self):
-        return {
-            'stock_id': self.stock_id,
-            'user_id': self.user_id,
-            'ticker': self.ticker,
-            'quantity': self.quantity,
-            'purchase_price': self.purchase_price,
-
-        }
+class Stock(db.Model):
+    __tablename__ = 'USER_STOCKS'
     
+    STOCK_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    TICKER = db.Column(db.String(10), nullable=False)
+    QUANTITY = db.Column(db.Float, nullable=False)
+    USER_ID = db.Column(db.Integer, db.ForeignKey('USERS.USER_ID'))
+    
+    def __repr__(self):
+        return f'<Stock {self.TICKER}>'

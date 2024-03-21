@@ -1,191 +1,192 @@
-import click
-import requests
-import uuid
-import oracledb
-import logging
-from logging.handlers import RotatingFileHandler
 from flask import Flask, jsonify, request
+import oracledb
 from flask_cors import CORS
-from flask_bcrypt import Bcrypt
-from flask.cli import with_appcontext
-from sqlalchemy import NullPool
-from models import db, Users, User_stocks
-import uuid
+from flask import request, jsonify, session
+import requests
+from models import db, User, Stock
+from sqlalchemy.pool import NullPool
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity,JWTManager 
+import logging
 
-# Initialize Flask application
-app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
-app.config['CORS_HEADERS'] = 'Content-Type'
-app.secret_key = "28d8c1d608fa26a304bc47063e1d4807"
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-handler = RotatingFileHandler('app.log', maxBytes=10000, backupCount=1)
-handler.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-handler.setFormatter(formatter)
-app.logger.addHandler(handler)
-
-# Oracle database credentials and connection string configuration
 un = 'ADMIN'
 pw = 'CapstoneProject2024'
-dsn = '(description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1521)(host=adb.eu-madrid-1.oraclecloud.com))(connect_data=(service_name=gec19704fd34d4a_c42uk8h9eko6mmm7_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))'
+dsn = '(description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1521)(host=adb.eu-madrid-1.oraclecloud.com))(connect_data=(service_name=gb3264e6f832c8b_database1_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))'
 
 pool = oracledb.create_pool(user=un, password=pw, dsn=dsn)
+
+app = Flask(__name__)
+app.secret_key= '156673d0aadd4b35e899d59664edd52f'
+CORS(app, resources={r"/": {"origins": ""}})
+jwt = JWTManager(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'oracle+oracledb://'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'creator': pool.acquire,
     'poolclass': NullPool
 }
+app.config['SQLALCHEMY_ECHO'] = False
+db.init_app(app)
 
-db.init_app(app)  # Initialize the db (SQLAlchemy) with the app
+try:
+    connection = oracledb.connect(user=un, password=pw, dsn=dsn)
+    print("Database connection successful!")
+except Exception as e:
+    print("Error connecting to database:", e)
 
-apikey = 'ZSLQEIEAP5XSK6N0'
 
-# Initialize bcrypt
-bcrypt = Bcrypt(app)
+logging.basicConfig(level=logging.DEBUG)
 
-# Flask CLI command to create the database tables
-@app.cli.command("create_db")
-@with_appcontext
-def create_db_command():
-    db.create_all()
-    click.echo("Database tables created.")
 
-@app.route('/', methods=['GET'])
-def home():
-    return jsonify({"message": "Welcome to the home page!"})
+@app.route('/register', methods=['POST'])
+def register():
+    data = request.json
+    username = data.get('USERNAME')
+    email = data.get('EMAIL')
+    password = data.get('PASSWORD')
 
-# User registration endpoint
-@app.route('/register', methods=["POST"])
-def register_user():
+    if not username or not email or not password:
+        return jsonify({'error': 'Missing username, email, or password'}), 400
+    
+    hashed_password = generate_password_hash(password)
+    user = User(username=username, email=email, password= hashed_password
+)
+    db.session.add(user)
+    db.session.commit()
+
+    return jsonify({'message': 'User created successfully'}), 201
+
+from flask import session
+
+@app.route('/login', methods=['POST'])
+def login():
     data = request.get_json()
-    user_name = data['user_name']
-    password = data['password']
-    user_mail = data['user_mail']
-    
-    existing_user = Users.query.filter_by(user_name=user_name).first()
-    if existing_user:
-        return jsonify({"error": "User already exists"}), 409
+    email = data.get('EMAIL')
+    password = data.get('PASSWORD')
 
-    hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-    user_id = str(uuid.uuid4())  # Generate a unique UUID for the user_id
-    new_user = Users(user_id=user_id, user_name=user_name, password=hashed_password, user_mail=user_mail)
-    db.session.add(new_user)
-    try:
-        db.session.commit()
-        return jsonify({"message": "User registered successfully", "user_id": user_id}), 201
-    except Exception as e:
-        db.session.rollback()
-        app.logger.error(f"An error occurred: {e}")
-        return jsonify({"error": str(e)}), 500
+    user = User.query.filter_by(EMAIL=email).first()
 
-# User login endpoint
-@app.route('/login', methods=["POST"])
-def user_login():
-    try:
-        credentials = request.get_json()
-        if not credentials:
-            return jsonify({"error": "No JSON data provided"}), 400
-        
-        user_name = credentials.get("user_name")
-        password = credentials.get("password")
-
-        # You need to retrieve the user object from the database first
-        user = Users.query.filter_by(user_name=user_name).first()
-        
-        if user and bcrypt.check_password_hash(user.password, password):
-            app.logger.info(f"User {user_name} logged in successfully.")
-            return jsonify({"message": "Login successful", "user_id": user.user_id}), 200
-        else:
-            app.logger.warning(f"Login failed for user {user_name}.")
-            return jsonify({"error": "Invalid credentials"}), 401
-    
-    except Exception as e:
-        app.logger.error(f"An error occurred during login: {e}")
-        return jsonify({"error": "Internal Server Error"}), 500
-
-    
-@app.route('/search/<ticker>', methods=["GET"])
-def search_stock(ticker):
-    response = requests.get(f"https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords={ticker}&apikey={apikey}")
-    
-    if response.ok:
-        data = response.json()
-        return jsonify(data["bestMatches"])
+    if user is not None and check_password_hash(user.PASSWORD, password):
+        session['user_id'] = user.USER_ID
+        return jsonify({"message": "Login successful"}), 200
     else:
-        return jsonify({"error": "Failed to fetch data"}), 500
+        return jsonify({"error": "Invalid email or password"}), 401
+@app.route('/logout', methods=["GET"])
+def logout():
+    session.pop('user_id', None) 
+    return jsonify({"message": "Logout successful"}), 200
 
-@app.route('/portfolio/modify', methods=["POST"])
-def modify_portfolio():
-    item_data = request.get_json()  # Use get_json() method to parse JSON data
-    if not item_data:
-        return jsonify({"error": "No JSON data provided"}), 400
 
-    user_id = item_data.get("user_id")
-    ticker = item_data.get("ticker")
-    quantity = item_data.get("quantity")
-    purchase_price = item_data.get("purchase_price")
-    action = item_data.get("action")
-    stock_id = item_data.get("stock_id", uuid.uuid4().hex)
-
-    if action not in ["add", "update", "delete"]:
-        return jsonify({"error": "Invalid action specified"}), 400
-
-    try:
-        if action == "add":
-            new_item = User_stocks(stock_id=stock_id, user_id=user_id, ticker=ticker, quantity=quantity, purchase_price=purchase_price)
-            db.session.add(new_item)
-            db.session.commit()
-            return jsonify({"message": "Stock added successfully"}), 201
-
-        elif action == "update":
-            item = User_stocks.query.filter_by(stock_id=stock_id, user_id=user_id).first()
-            if item:
-                item.quantity = quantity
-                item.purchase_price = purchase_price
-                db.session.commit()
-                return jsonify({"message": "Stock updated successfully"}), 200
-            else:
-                return jsonify({"error": "Stock not found"}), 404
-
-        elif action == "delete":
-            item = User_stocks.query.filter_by(stock_id=stock_id, user_id=user_id).first()
-            if item:
-                db.session.delete(item)
-                db.session.commit()
-                return jsonify({"message": "Stock deleted successfully"}), 200
-            else:
-                return jsonify({"error": "Stock not found"}), 404
-
-    except Exception as e:
-        db.session.rollback()
-        app.logger.error(f"An error occurred during portfolio modification: {e}")
-        return jsonify({"error": str(e)}), 500
+@app.route('/user/profile', methods=['GET'])
+@jwt_required()
+def get_user_profile():
+    current_user_email = get_jwt_identity()
+    user = User.query.filter_by(EMAIL=current_user_email).first()
+    if user:
+        user_info = {
+            'USER_ID': user.USER_ID,
+            'USERNAME': user.USERNAME,
+            'EMAIL': user.EMAIL
+        }
+        return jsonify(user_info)
+    else:
+        return jsonify({'error': 'User not found'}), 404
     
-@app.route('/portfolio/<user_id>', methods=["GET"])
-def get_portfolio(user_id):
-    app.logger.info(f"Fetching portfolio for user: {user_id}")
+ 
 
-    try:
-        # Fetch portfolio from database
-        portfolio_items = User_stocks.query.filter_by(user_id=user_id).all()
-        # Convert to JSON serializable format
-        portfolio_data = [
+def get_latest_closing_price(ticker):
+    apikey = "2Q8AT87UOUTGOPGY"
+    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol={ticker}&apikey={apikey}"
+    response = requests.get(url)
+    data = response.json()
+    latest_week = list(data["Weekly Time Series"].keys())[0]
+    latest_close_price = data["Weekly Time Series"][latest_week]["4. close"]
+    return float(latest_close_price)
+
+        ###################################################
+        
+def get_latest_closing_price(ticker):
+    apikey = "2Q8AT87UOUTGOPGY"
+    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol={ticker}&apikey={apikey}"
+    response = requests.get(url)
+    data = response.json()
+    latest_week = list(data["Weekly Time Series"].keys())[0]
+    latest_close_price = data["Weekly Time Series"][latest_week]["4. close"]
+    return float(latest_close_price)
+
+@app.route('/portfolio/<email>', methods=["GET"])
+def get_portfolio(email):
+    user = User.query.filter_by(EMAIL=email).first()  
+    if user:
+        stocks_list = [
             {
-                "ticker": item.ticker, 
-                "quantity": item.quantity, 
-                "purchase_price": item.purchase_price
-            }
-            for item in portfolio_items
+                "ticker": stock.TICKER,  
+                "quantity": stock.QUANTITY  
+            } for stock in user.Stock.all()  
         ]
-        return jsonify(portfolio_data), 200
-    
+        return jsonify(stocks_list)
+    return jsonify({"message": "User not found"}), 404
+
+@app.route('/<ticker>', methods=["GET"])
+def get_ticker_info(ticker):
+    try:
+        apikey = "2Q8AT87UOUTGOPGY"
+        stock = ticker
+        url = f"https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol={stock}&apikey={apikey}"
+
+       
+        response = requests.get(url)
+        data = response.json()
+        stock_info = data["Weekly Time Series"]
+        selected_items = list(stock_info.items())[:10]
+        stock_info = dict(selected_items)
+        latest_week_key = list(stock_info.keys())[0]
+        previous_week_key = list(stock_info.keys())[1]
+        latest_close = float(stock_info[latest_week_key]["4. close"])
+        previous_close = float(stock_info[previous_week_key]["4. close"])
+        percent_change = ((latest_close - previous_close) / previous_close) * 100
+        
+        return jsonify({"stock_info": stock_info, "percent_change": percent_change})
+
     except Exception as e:
-        app.logger.error(f"An error occurred while fetching the portfolio: {e}")
-        return jsonify({"error": "Internal Server Error"}), 500
+        print(str(e))
+        return {"error": "Failed to fetch ticker information"}, 500
+
+@app.route('/add-stock/<username>/<string:stock>/<int:quantity>', methods=["POST"])
+def add_stock(username, stock, quantity):
+    user = User.query.filter_by(USERNAME=username).first()
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    try:
+        get_latest_closing_price(stock)
+    except Exception as e:
+        return jsonify({"error": f"Invalid or inaccessible stock ticker: {stock}"}), 400
+
+    existing_stock = Stock.query.filter_by(USER_ID=user.USER_ID, TICKER=stock).first() 
+    if existing_stock:
+        existing_stock.QUANTITY += quantity 
+    else:
+        new_stock = Stock(TICKER=stock, QUANTITY=quantity, USER_ID=user.USER_ID) 
+        db.session.add(new_stock)
+
+    db.session.commit()
+
+    return jsonify({"message": f"{quantity} units of stock {stock} added for user {username}"})
 
 
+@app.route('/remove-stock/<string:username>/<string:stock>', methods=["DELETE"])
+def remove_stock(username, stock):
+    user = User.query.filter_by(USERNAME=username).first()
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    stock_to_remove = Stock.query.filter_by(USER_ID=user.USER_ID, TICKER=stock).first()  
+    if stock_to_remove:
+        db.session.delete(stock_to_remove)
+        db.session.commit()
+        return jsonify({"message": f"Stock {stock} removed for user {username}"})
+    else:
+        return jsonify({"error": "Stock not found"}), 404
+       
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True)  
