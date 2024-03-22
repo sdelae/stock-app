@@ -8,6 +8,7 @@ from models import db, User, Stock
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity,JWTManager 
 import logging
+import sys
 
 # un = 'ADMIN'
 # pw = 'Capstone12345'
@@ -42,6 +43,8 @@ with app.app_context():
 
 
 logging.basicConfig(level=logging.DEBUG)
+app.logger.addHandler(logging.StreamHandler(sys.stdout))
+app.logger.setLevel(logging.INFO)
 
 def add_cors_headers(response):
     origin = request.headers.get('Origin')
@@ -77,18 +80,29 @@ from flask import session
 @app.route('/login', methods=['POST', 'OPTIONS'])
 def login():
     if request.method == 'OPTIONS':
-        return add_cors_headers(make_response())
+        app.logger.info('Received OPTIONS request for /login')
+        response = make_response()
+        return add_cors_headers(response)
+    
     data = request.get_json()
-    email = data.get('EMAIL')
+    username = data.get('USERNAME')
     password = data.get('PASSWORD')
+    app.logger.info('Attempting login with username: %s', username)
+    
+    user = User.query.filter_by(USERNAME=username).first()
+    
+    if user and check_password_hash(user.PASSWORD, password):
+        app.logger.info('User found in database and password check passed')
+        access_token = create_access_token(identity=username)
+        return jsonify({
+            "message": "Login successful",
+            "access_token": access_token  # Include the access token in the response
+        }), 200
+    
+    app.logger.info('Login failed - invalid username or password')
+    return jsonify({"error": "Invalid username or password"}), 401
 
-    user = User.query.filter_by(EMAIL=email).first()
 
-    if user is not None and check_password_hash(user.PASSWORD, password):
-        session['user_id'] = user.USER_ID
-        return jsonify({"message": "Login successful"}), 200
-    else:
-        return jsonify({"error": "Invalid email or password"}), 401
 @app.route('/logout', methods=["GET"])
 def logout():
     session.pop('user_id', None) 

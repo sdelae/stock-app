@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./sidebar.css";
-import { Navbar, Card, Table, Container, Badge } from "react-bootstrap";
+import { Navbar, Card, Table, Container, Badge, Button } from "react-bootstrap"; // Ensure Button is imported
 import { useUser } from "../context/userContext";
 import { useLocation } from "react-router-dom";
 
@@ -10,7 +10,14 @@ const Sidebar = () => {
   const [reloadSidebar, setReloadSidebar] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [quantity, setQuantity] = useState(0);
-  const location = useLocation(); 
+  const location = useLocation();
+
+  // Function to handle stock removal
+  const handleRemoveStock = (indexToRemove) => {
+    setPortfolioItems(portfolioItems.filter((_, index) => index !== indexToRemove));
+    // Optionally trigger any other updates or side effects here
+    triggerReload(); // For example, to reflect the change in the parent component or context
+  };
 
   const handleAddStock = async () => {
     try {
@@ -64,8 +71,8 @@ const Sidebar = () => {
           <Card.Body>
             <Card.Text>
               <div className="mb-3 font">
-                <h3 className=" font-weight-bold text-lg">
-                  <Badge bg="secondary"> My Stock Portfolio</Badge>
+                <h3 className="font-weight-bold text-lg">
+                  <Badge bg="secondary">My Stock Portfolio</Badge>
                 </h3>
               </div>
               <Table responsive>
@@ -73,7 +80,7 @@ const Sidebar = () => {
                   <tr>
                     <th>Symbol</th>
                     <th>Quantity</th>
-                    <th>Date</th>
+                    <th>Actions</th> {/* Header for the remove button */}
                   </tr>
                 </thead>
                 <tbody>
@@ -81,7 +88,11 @@ const Sidebar = () => {
                     <tr key={index}>
                       <td>{item.ticker}</td>
                       <td>{item.quantity}</td>
-                      <td>{item.symbol}</td>
+                      <td>
+                      <Button variant="danger" size="sm" onClick={() => handleRemoveStock(index)}>
+                          Remove
+                        </Button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

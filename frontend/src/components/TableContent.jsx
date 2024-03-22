@@ -53,7 +53,7 @@ const TickerTable = ({ inputValue }) => {
       <Row className="align-items-center">
       </Row>
       <Row className="mt-4"> {/* Add top margin to separate from header */}
-        <Col md={{ span: 8, offset: 2 }}> {/* Adjust 'offset' to line up with your header */}
+        <Col md={{ span: 10, offset: 1 }}> {/* Adjust 'offset' to line up with your header */}
           <Button onClick={fetchData}>Generate Table</Button>
           {tickerData ? (
             <Table striped bordered hover>

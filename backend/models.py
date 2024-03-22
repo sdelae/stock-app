@@ -10,10 +10,10 @@ class User(db.Model):
     PASSWORD = db.Column(db.String(128), nullable=False)
     Stock = db.relationship('Stock', backref='owner', lazy='dynamic')
 
-    def __init__(self, username, email, password):  
-        self.USERNAME = username
-        self.EMAIL = email
-        self.PASSWORD = password
+    # def __init__(self, username, email, password):  
+    #     self.USERNAME = username
+    #     self.EMAIL = email
+    #     self.PASSWORD = password
     
 
 class Stock(db.Model):
@@ -24,5 +24,5 @@ class Stock(db.Model):
     QUANTITY = db.Column(db.Float, nullable=False)
     USER_ID = db.Column(db.Integer, db.ForeignKey('USERS.USER_ID'))
     
-    def __repr__(self):
-        return f'<Stock {self.TICKER}>'
+    # def __repr__(self):
+    #     return f'<Stock {self.TICKER}>'
