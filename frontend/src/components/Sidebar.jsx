@@ -16,7 +16,7 @@ const Sidebar = () => {
     try {
       let endpoint = "";
       if (inputValue && quantity) {
-        endpoint = `https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol=${inputValue}&apikey=2Q8AT87UOUTGOPGY`;
+        endpoint = `https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol=${inputValue}&apikey=ZSLQEIEAP5XSK6N0`;
       } else {
         throw new Error("Please provide both symbol and quantity");
       }

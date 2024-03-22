@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Navbar, Container, Button } from "react-bootstrap";
 import { Link, useNavigate } from "react-router-dom";
 import { useUser } from "../context/userContext";
+import './sidebar.css'; 
 
 const Header = () => {
   const [totalValue, setTotalValue] = useState(null);
@@ -14,7 +15,7 @@ const Header = () => {
 
       try {
         const response = await fetch(
-          `http://localhost:5000/loginhttps://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol=${user.ticker}&apikey=2Q8AT87UOUTGOPGY`
+          `http://127.0.0.1:5000/loginhttps://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol=${user.ticker}&apikey=ZSLQEIEAP5XSK6N0`
         );
 
         if (!response.ok) {
@@ -34,7 +35,7 @@ const Header = () => {
 
   const handleLogout = async () => {
     try {
-      const response = await fetch("http://localhost:5000/logout", {
+      const response = await fetch("http://127.0.0.1:5000/logout", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -52,7 +53,7 @@ const Header = () => {
   };
 
   return (
-    <Navbar bg="light" expand="lg">
+    <Navbar bg="light" expand="lg" className="header-navbar">
       <Container>
         <Navbar.Brand href="/">
           Total Value: $ {user ? user.totalvalue : 0}
@@ -62,7 +63,7 @@ const Header = () => {
           <Navbar.Text>
             {user ? (
               <>
-                Welcome, {user.email}{" "}
+                Welcome {user.username}{" "}
                 <Button variant="link" onClick={handleLogout}>
                   Logout
                 </Button>

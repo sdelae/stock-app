@@ -1,6 +1,6 @@
 .home {
-  height: 100%;
-  width: 15%;
+  height: 100%; 
+  width: 300px; 
   position: fixed;
   z-index: 1;
   top: 0;
@@ -8,8 +8,13 @@
   background-color: white;
   overflow-x: hidden;
   transition: 0.5s;
-  color: white;
   box-shadow: 2px 3px 5px #f6f6f7;
+}
+
+.main-content {
+  margin-left: 300px; 
+  padding: 1em;
+  overflow: hidden; 
 }
 
 .card {
@@ -31,4 +36,13 @@
 
 .li {
   border: none;
+}
+
+.navbar {
+  padding-right: 15px;
+}
+
+.d-grid {
+  padding-left: 15px; /* Adjust as needed to align with the sidebar content */
+  padding-right: 15px; /* Adjust as needed to align with the sidebar content */
 }
