@@ -1,45 +1,39 @@
 from flask import Flask, jsonify, make_response, request
-# import oracledb
+import oracledb
 from flask_cors import CORS
 from flask import request, jsonify, session
 import requests
 from models import db, User, Stock
-# from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import NullPool
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity,JWTManager 
 import logging
 import sys
 
-# un = 'ADMIN'
-# pw = 'Capstone12345'
-# dsn = '(description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1521)(host=adb.eu-madrid-1.oraclecloud.com))(connect_data=(service_name=gb3264e6f832c8b_ucc15m0ukh0i2i4g_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))'
-# pool = oracledb.create_pool(user=un, password=pw, dsn=dsn, ssl_server_dn_match='yes')
+un = 'ADMIN'
+pw = 'Capstone12345'
+dsn = '(description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1521)(host=adb.eu-madrid-1.oraclecloud.com))(connect_data=(service_name=gb3264e6f832c8b_ucc15m0ukh0i2i4g_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))'
+pool = oracledb.create_pool(user=un, password=pw, dsn=dsn, ssl_server_dn_match='yes')
 
 app = Flask(__name__)
 app.secret_key= '156673d0aadd4b35e899d59664edd52f'
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
 jwt = JWTManager(app)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///mydatabase.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-# app.config['SQLALCHEMY_DATABASE_URI'] = 'oracle+oracledb://'
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///mydatabase.db'
 # app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-# app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-#     'creator': pool.acquire,
-#     'poolclass': NullPool
-# }
+
+app.config['SQLALCHEMY_DATABASE_URI'] = 'oracle+oracledb://'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'creator': pool.acquire,
+    'poolclass': NullPool
+}
 app.config['SQLALCHEMY_ECHO'] = False
 
 db.init_app(app)
 with app.app_context():
     db.create_all()
-
-# try:
-#     connection = oracledb.connect(user=un, password=pw, dsn=dsn)
-#     print("Database connection successful!")
-# except Exception as e:
-#     print("Error connecting to database:", e)
 
 
 logging.basicConfig(level=logging.DEBUG)
