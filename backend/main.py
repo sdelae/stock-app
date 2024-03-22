@@ -11,8 +11,8 @@ import logging
 import sys
 
 un = 'ADMIN'
-pw = 'Capstone12345'
-dsn = '(description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1521)(host=adb.eu-madrid-1.oraclecloud.com))(connect_data=(service_name=gb3264e6f832c8b_ucc15m0ukh0i2i4g_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))'
+pw = 'CapstoneProject2024'
+dsn = '(description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1521)(host=adb.eu-madrid-1.oraclecloud.com))(connect_data=(service_name=gb3264e6f832c8b_database1_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))'
 pool = oracledb.create_pool(user=un, password=pw, dsn=dsn, ssl_server_dn_match='yes')
 
 app = Flask(__name__)
