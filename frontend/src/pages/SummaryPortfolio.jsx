@@ -12,7 +12,7 @@ function SummaryPortfolio() {
 
   useEffect(() => {
     axios
-      .get("http://127.0.0.1:5000/")
+      .get("https://mcsbt-capstone-sara.ew.r.appspot.com/")
       .then((response) => {
         setStocks(response.data.stocks);
         setTotalValue(response.data.total_portfolio_value);
