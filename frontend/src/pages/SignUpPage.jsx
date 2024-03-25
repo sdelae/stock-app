@@ -123,7 +123,7 @@ const SignupForm = () => {
           <p style={{ marginTop: "15px", fontSize: "13px" }}>
             Already registered? Login{" "}
             <Link
-              to="/sign-in"
+              to="/"
               style={{ color: "inherit", textDecoration: "inherit" }}
             >
               <strong>here</strong>

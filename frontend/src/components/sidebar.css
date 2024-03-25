@@ -1,14 +1,15 @@
 .home {
-  height: 100%; 
-  width: 300px; 
+  height: calc(100% - 60px);
+  width: 300px;
   position: fixed;
   z-index: 1;
-  top: 0;
+  top: 60px; 
   left: 0;
   background-color: white;
   overflow-x: hidden;
   transition: 0.5s;
   box-shadow: 2px 3px 5px #f6f6f7;
+  padding-top: 60px;
 }
 
 .main-content {
@@ -43,6 +44,6 @@
 }
 
 .d-grid {
-  padding-left: 15px; /* Adjust as needed to align with the sidebar content */
-  padding-right: 15px; /* Adjust as needed to align with the sidebar content */
+  padding-left: 15px; 
+  padding-right: 15px; 
 }

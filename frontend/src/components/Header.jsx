@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { Navbar, Container, Button } from "react-bootstrap";
 import { Link, useNavigate } from "react-router-dom";
 import { useUser } from "../context/userContext";
-import './sidebar.css'; 
 
 const Header = () => {
   const [totalValue, setTotalValue] = useState(null);
@@ -15,7 +14,7 @@ const Header = () => {
 
       try {
         const response = await fetch(
-          `http://127.0.0.1:5000/loginhttps://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol=${user.ticker}&apikey=ZSLQEIEAP5XSK6N0`
+          `https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol=${user.ticker}&apikey=2Q8AT87UOUTGOPGY`
         );
 
         if (!response.ok) {
@@ -46,14 +45,14 @@ const Header = () => {
         throw new Error("Logout failed");
       }
       setUserData(null);
-      navigate("/sign-in");
+      navigate("/");
     } catch (error) {
       console.error(error.message);
     }
   };
 
   return (
-    <Navbar bg="light" expand="lg" className="header-navbar">
+    <Navbar bg="light" expand="lg">
       <Container>
         <Navbar.Brand href="/">
           Total Value: $ {user ? user.totalvalue : 0}
@@ -69,7 +68,7 @@ const Header = () => {
                 </Button>
               </>
             ) : (
-              <Link to="/sign-in">
+              <Link to="/">
                 <Button>Login</Button>
               </Link>
             )}

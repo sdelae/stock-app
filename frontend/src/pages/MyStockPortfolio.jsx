@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Container, Row, Col } from "react-bootstrap";
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
-import TickerTable from "../components/TableContent"; // Ensure the file name is correct here
+import TickerTable from "../components/TableContent";
 
 export default function MyStockPortfolio() {
   const [inputValue, setInputValue] = useState("");
@@ -13,18 +13,12 @@ export default function MyStockPortfolio() {
 
   return (
     <Container fluid>
-      {/* Header row */}
       <Row>
-        <Col xs={12}> {/* Header takes full width */}
-          <Header />
-        </Col>
-      </Row>
-      {/* Content row */}
-      <Row>
-        <Col md={2} className="mt-3"> {/* Sidebar column */}
+        <Col md={2} className="mt-3">
           <Sidebar onInputChange={handleInputChange} />
         </Col>
-        <Col md={10} className="mt-3"> {/* TickerTable column, adjusted to md={10} to fill the rest */}
+        <Col md={8} className="mt-3">
+          <Header />
           <TickerTable inputValue={inputValue} />
         </Col>
       </Row>
